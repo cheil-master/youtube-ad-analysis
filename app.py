@@ -84,6 +84,8 @@ if submit:
             
             # [수정된 ydl_opts]
             ydl_opts = {
+                # mp4 포맷 중 오디오가 포함된 가장 좋은 화질을 선택하거나, 
+                # 비디오+오디오를 합쳐서 mp4로 변환하도록 설정
                 'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': video_path,
                 'quiet': True,
@@ -203,6 +205,7 @@ if submit:
                 os.remove(video_path)
             if cookie_path and os.path.exists(cookie_path):
                 os.remove(cookie_path)
+
 
 
 
