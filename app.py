@@ -10,11 +10,28 @@ import tempfile
 # 페이지 설정
 st.set_page_config(page_title="유튜브 광고 소재 분석기", layout="wide")
 
-# 사이드바: API 키 입력 (보안을 위해)
+# [추가] Secrets에서 쿠키를 읽어 임시 파일로 만드는 함수
+def create_temp_cookie_file():
+    """
+    Streamlit Secrets에 저장된 YOUTUBE_COOKIES 텍스트를 
+    yt-dlp가 인식할 수 있는 .txt 파일로 변환합니다.
+    """
+    if "YOUTUBE_COOKIES" in st.secrets:
+        try:
+            tmp_cookie = tempfile.NamedTemporaryFile(delete=False, suffix='.txt', mode='w', encoding='utf-8')
+            tmp_cookie.write(st.secrets["YOUTUBE_COOKIES"])
+            tmp_cookie.close()
+            return tmp_cookie.name
+        except Exception as e:
+            st.error(f"쿠키 파일 생성 중 오류: {e}")
+    return None
+
+# 사이드바: API 키 입력
 with st.sidebar:
     st.header("설정")
     api_key = st.text_input("Google API Key를 입력하세요", type="password")
     st.markdown("[Google AI Studio에서 키 발급받기](https://aistudio.google.com/app/apikey)")
+    st.info("💡 403 에러 방지를 위해 Streamlit Secrets에 YOUTUBE_COOKIES를 설정해주세요.")
 
 # 메인 화면
 st.title("📹 유튜브 광고 소재 분석 & 메일 양식 생성기")
@@ -39,51 +56,57 @@ if submit:
     elif not video_url:
         st.error("유튜브 링크를 입력해주세요.")
     else:
-        # 선택된 채널 정리
         selected_channels = []
         if c1: selected_channels.append("TVC")
         if c2: selected_channels.append("브랜드 유튜브 채널")
         if c3: selected_channels.append("옥외광고")
         channel_str = ", ".join(selected_channels) if selected_channels else "선택 없음"
 
-        # 진행 표시
         status_text = st.empty()
         progress_bar = st.progress(0)
 
+        # 경로 변수 초기화
+        video_path = None
+        cookie_path = None
+
         try:
-            # 1. 영상 다운로드
+            # 1. 준비 작업 (쿠키 및 영상 경로)
+            cookie_path = create_temp_cookie_file()
+            
+            # 고유한 임시 파일명을 사용하여 충돌 방지
+            tmp_video_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+            video_path = tmp_video_file.name
+            tmp_video_file.close()
+
+            # 2. 영상 다운로드 (yt-dlp 설정 최적화)
             status_text.info("📥 영상을 다운로드 중입니다...")
             progress_bar.progress(20)
             
-            # [수정됨] 403 Forbidden 에러 방지 옵션 추가
             ydl_opts = {
                 'format': 'best[ext=mp4]',
-                'outtmpl': 'temp_video.mp4',
+                'outtmpl': video_path,
                 'quiet': True,
-                # 사람인 척 속이는 헤더 정보 추가
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
-                },
+                'no_warnings': True,
                 'nocheckcertificate': True,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                },
             }
-            
-            # 파일이 이미 있으면 삭제
-            if os.path.exists('temp_video.mp4'):
-                os.remove('temp_video.mp4')
+
+            # 쿠키가 설정되어 있다면 적용 (403 에러 해결 핵심)
+            if cookie_path:
+                ydl_opts['cookiefile'] = cookie_path
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([video_url])
             
-            video_path = 'temp_video.mp4'
-
-            # 2. Gemini 설정 및 업로드
+            # 3. Gemini 설정 및 업로드
             genai.configure(api_key=api_key)
             status_text.info("📤 AI에게 영상을 전송하고 분석 중입니다...")
             progress_bar.progress(50)
 
             video_file = genai.upload_file(path=video_path)
             
-            # 파일 처리 대기
             while video_file.state.name == "PROCESSING":
                 time.sleep(2)
                 video_file = genai.get_file(video_file.name)
@@ -92,8 +115,7 @@ if submit:
                 st.error("영상 처리에 실패했습니다.")
                 st.stop()
 
-            # 3. AI 분석 요청 (프롬프트)
-            # 모델명은 필요시 'gemini-1.5-pro' 등으로 변경 가능
+            # 4. AI 분석 요청
             model = genai.GenerativeModel(model_name="gemini-1.5-pro-latest")
             
             prompt = f"""
@@ -127,32 +149,27 @@ if submit:
             
             response = model.generate_content([video_file, prompt])
             analysis_result = response.text
-
             progress_bar.progress(80)
 
-            # 4. 스토리보드 이미지 생성 (간이 버전)
+            # 5. 스토리보드 이미지 생성
             status_text.info("🖼️ 스토리보드(4x4) 이미지를 생성 중입니다...")
             
             cap = cv2.VideoCapture(video_path)
             total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
-            # 16개 프레임 균등 추출
-            frame_indices = np.linspace(0, total_frames-1, 16, dtype=int)
+            frame_indices = np.linspace(0, max(0, total_frames-1), 16, dtype=int)
             frames = []
             
             for idx in frame_indices:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
                 ret, frame = cap.read()
                 if ret:
-                    # BGR을 RGB로 변환하고 리사이즈 (메모리 절약)
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     frame = cv2.resize(frame, (320, 180)) 
                     frames.append(frame)
             cap.release()
 
-            # 4x4 그리드로 합치기
             if len(frames) == 16:
-                # 4개씩 묶어서 가로로 연결(hstack), 그 후 세로로 연결(vstack)
                 row1 = np.hstack(frames[0:4])
                 row2 = np.hstack(frames[4:8])
                 row3 = np.hstack(frames[8:12])
@@ -160,12 +177,11 @@ if submit:
                 grid_image = np.vstack([row1, row2, row3, row4])
             else:
                 grid_image = None
-                st.warning("영상이 너무 짧아 스토리보드를 만들 수 없습니다.")
 
             progress_bar.progress(100)
             status_text.success("분석 완료!")
 
-            # 5. 결과 출력
+            # 6. 결과 출력
             col_res1, col_res2 = st.columns([1, 1])
 
             with col_res1:
@@ -176,12 +192,15 @@ if submit:
                 st.subheader("🎬 스토리보드")
                 if grid_image is not None:
                     st.image(grid_image, caption="4x4 Storyboard")
-            
-            # 파일 정리
-            if os.path.exists(video_path):
-                os.remove(video_path)
+                else:
+                    st.warning("영상이 너무 짧아 스토리보드를 만들 수 없습니다.")
 
         except Exception as e:
             st.error(f"오류가 발생했습니다: {e}")
-            if os.path.exists('temp_video.mp4'):
-                os.remove('temp_video.mp4')
+        
+        finally:
+            # 7. 파일 정리 (중요: 사용 후 즉시 삭제)
+            if video_path and os.path.exists(video_path):
+                os.remove(video_path)
+            if cookie_path and os.path.exists(cookie_path):
+                os.remove(cookie_path)
