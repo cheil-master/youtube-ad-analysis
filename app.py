@@ -84,8 +84,7 @@ if submit:
             
             # [수정된 ydl_opts]
             ydl_opts = {
-                # mp4를 우선하되, 없으면 가장 좋은 화질(best)을 선택합니다.
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'format': 'best',
                 'outtmpl': video_path,
                 'quiet': True,
                 'no_warnings': True,
@@ -204,4 +203,5 @@ if submit:
                 os.remove(video_path)
             if cookie_path and os.path.exists(cookie_path):
                 os.remove(cookie_path)
+
 
