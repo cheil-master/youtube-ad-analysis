@@ -82,8 +82,10 @@ if submit:
             status_text.info("📥 영상을 다운로드 중입니다...")
             progress_bar.progress(20)
             
+            # [수정된 ydl_opts]
             ydl_opts = {
-                'format': 'best[ext=mp4]',
+                # mp4를 우선하되, 없으면 가장 좋은 화질(best)을 선택합니다.
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': video_path,
                 'quiet': True,
                 'no_warnings': True,
@@ -92,8 +94,6 @@ if submit:
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 },
             }
-
-            # 쿠키가 설정되어 있다면 적용 (403 에러 해결 핵심)
             if cookie_path:
                 ydl_opts['cookiefile'] = cookie_path
 
@@ -204,3 +204,4 @@ if submit:
                 os.remove(video_path)
             if cookie_path and os.path.exists(cookie_path):
                 os.remove(cookie_path)
+
