@@ -1,0 +1,6 @@
+streamlit
+google-generativeai
+yt-dlp
+opencv-python-headless
+numpy
+matplotlib
