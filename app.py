@@ -108,14 +108,16 @@ if submit:
 
             video_file = genai.upload_file(path=video_path)
             
-            while video_file.state.name == "PROCESSING":
-                time.sleep(2)
-                video_file = genai.get_file(video_file.name)
+            # 상태 모니터링 개선
+            with st.spinner("AI가 영상을 분석할 수 있도록 준비 중입니다..."):
+                while video_file.state.name == "PROCESSING":
+                    time.sleep(3)
+                    video_file = genai.get_file(video_file.name)
             
-            if video_file.state.name == "FAILED":
-                st.error("영상 처리에 실패했습니다.")
+            if video_file.state.name != "ACTIVE":
+                st.error(f"Gemini 영상 처리 상태 오류: {video_file.state.name}")
                 st.stop()
-
+            
             # 4. AI 분석 요청
             model = genai.GenerativeModel(model_name="gemini-1.5-pro-latest")
             
@@ -205,6 +207,7 @@ if submit:
                 os.remove(video_path)
             if cookie_path and os.path.exists(cookie_path):
                 os.remove(cookie_path)
+
 
 
 
