@@ -84,14 +84,16 @@ if submit:
             
             # [수정된 ydl_opts]
             ydl_opts = {
-                # 1. 처음부터 비디오+오디오가 합쳐진(merged) 단일 mp4 파일 중 가장 좋은 것을 선택
-                'format': 'best[ext=mp4]/best', 
+                # mp4 포맷 중 오디오가 포함된 가장 좋은 화질을 선택하거나, 
+                # 비디오+오디오를 합쳐서 mp4로 변환하도록 설정
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
                 'outtmpl': video_path,
                 'quiet': True,
                 'no_warnings': True,
                 'nocheckcertificate': True,
-                # 2. 영상이 가끔 깨지는 것을 방지하기 위해 파일 쓰기 모드 강제
-                'overwrites': True,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                },
             }
             if cookie_path:
                 ydl_opts['cookiefile'] = cookie_path
@@ -204,6 +206,7 @@ if submit:
                 os.remove(video_path)
             if cookie_path and os.path.exists(cookie_path):
                 os.remove(cookie_path)
+
 
 
 
