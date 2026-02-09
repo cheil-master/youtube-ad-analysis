@@ -55,12 +55,18 @@ if submit:
             status_text.info("📥 영상을 다운로드 중입니다...")
             progress_bar.progress(20)
             
+            # [수정됨] 403 Forbidden 에러 방지 옵션 추가
             ydl_opts = {
                 'format': 'best[ext=mp4]',
                 'outtmpl': 'temp_video.mp4',
                 'quiet': True,
-                # 'overwrites': True  # 구버전 yt-dlp 호환성 이슈 방지
+                # 사람인 척 속이는 헤더 정보 추가
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36',
+                },
+                'nocheckcertificate': True,
             }
+            
             # 파일이 이미 있으면 삭제
             if os.path.exists('temp_video.mp4'):
                 os.remove('temp_video.mp4')
@@ -87,6 +93,7 @@ if submit:
                 st.stop()
 
             # 3. AI 분석 요청 (프롬프트)
+            # 모델명은 필요시 'gemini-1.5-pro' 등으로 변경 가능
             model = genai.GenerativeModel(model_name="gemini-1.5-pro-latest")
             
             prompt = f"""
