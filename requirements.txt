@@ -3,5 +3,5 @@ google-generativeai
 yt-dlp
 opencv-python-headless
 numpy
-ffmpeg
 matplotlib
+
